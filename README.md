@@ -93,10 +93,15 @@ Deux modules qui veulent chacun **leur four**. Chacun a raison chez lui.
   → new Four("pizza", 450)                 → new Four("livraison", 60)   // étuve du scooter
 ```
 
+Le chapitre se joue en trois états, que deux scripts font basculer :
+
 ```sh
 cd 2-collisions
-./casser.sh && ./publier.sh
-cd edition-collision && mvn -q package && java -jar target/edition-collision-1.0.0.jar
+./casser.sh              && ./publier.sh   # actes 1-2 : rien ne demarre
+./casser.sh --generateur && ./publier.sh   # acte 3   : le BeanNameGenerator est en place
+./reparer.sh             && ./publier.sh   # actes 4-5 : assemblage sain
+# apres chaque bascule :
+(cd edition-collision && mvn -q clean package && java -jar target/edition-collision-1.0.0.jar)
 ```
 
 **Acte 1** — deux classes scannées nommées `Caisse` :
@@ -111,7 +116,8 @@ BeanDefinitionOverrideException: bean 'four' ... overriding is disabled
 > 🔑 **Un `BeanNameGenerator` renomme les composants *scannés*. Il ne renomme pas les méthodes
 > `@Bean`.** C'est la découverte qui coûte une nuit quand on l'apprend sur un vrai module.
 
-**Acte 3** — quelqu'un « répare » avec un drapeau :
+**Acte 3** — le générateur est en place (`./casser.sh --generateur`), et quelqu'un « répare »
+l'écrasement restant avec un drapeau :
 
 ```sh
 java -jar target/edition-collision-1.0.0.jar --spring.main.allow-bean-definition-overriding=true
