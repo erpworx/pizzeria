@@ -4,7 +4,7 @@
   <repositories><repository><id>pizzeria</id><url>file://${project.basedir}/../depot</url></repository></repositories>
   <dependencyManagement><dependencies>
     <dependency><groupId>com.pizzeria</groupId><artifactId>pizzeria-bom</artifactId>
-      <version>2026.41</version><type>pom</type><scope>import</scope></dependency>
+      <version>2026.50</version><type>pom</type><scope>import</scope></dependency>
   </dependencies></dependencyManagement>
   <dependencies>
     <dependency><groupId>com.pizzeria</groupId><artifactId>socle</artifactId></dependency>

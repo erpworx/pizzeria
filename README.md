@@ -151,37 +151,77 @@ cd 3-tenancy-entitlement
 (cd edition-complete && mvn -q package && java -jar target/edition-complete-1.0.0.jar)
 ```
 
-Deux pizzerias, **une base de données chacune**. Chaque module a **son schéma**, **ses migrations**
-Flyway et **son rang** d'application, déclarés dans sa fiche :
+### Le registre : une base de contrôle, comme `erp_meta`
+
+Les tenants ne sont pas une liste en dur. Ils vivent dans une **base de contrôle** — `meta` — qui
+porte trois tables et **aucune donnée métier** :
+
+| Table | Rôle |
+|---|---|
+| `tenants` | `code · base · statut` — seuls les `ACTIF` sont migrés et servis |
+| `module_entitlements` | qui a acheté quel module |
+| `tenant_schema_versions` | l'inventaire : où en est chaque couple (tenant, module) |
+
+`TenantDirectory` la lit et met le **routage** en cache — jamais un secret.
+
+### La fiche de module
+
+Les neuf méthodes du contrat réel. Un auteur de module recopie cette forme telle quelle :
 
 ```java
 public interface ModuleDescriptor {
-    String code();                  // "pizza"
-    String schema();                // le schéma SQL qui lui appartient
-    int    rang();                  // ordre d'application des migrations
-    String emplacementMigrations(); // "classpath:db/pizza"
-    String paquetRacine();          // sert au garde d'entitlement
+    String code();              // "pizza" — unique dans l'assemblage
+    String schema();            // le schéma SQL qui lui appartient
+    int rank();                 // ordre d'application des migrations
+    String migrationLocation(); // "classpath:db/pizza"
+    String historyTable();      // sa propre table d'historique Flyway
+    String baselineVersion();   // "0" sur un schéma neuf, "1" sur un schéma repris
+    boolean onSearchPath();
+    String basePackage();       // sert au garde d'entitlement — jamais une annotation
+    default boolean sellable() { return true; }
 }
 ```
 
+`ModuleRegistry` **refuse au démarrage** deux modules qui déclarent le même `code` ou le même
+`schema` — une collision découverte en production, ce serait deux modules écrivant dans les mêmes
+tables.
+
+### Les migrations, par tenant × module, par rang
+
 ```
-MIGRATIONS
   lyon      ← rang 10 · schema 'pizza' migre
   lyon      ← rang 20 · schema 'livraison' migre
   marseille ← rang 10 · schema 'pizza' migre
   marseille ← rang 20 · schema 'livraison' migre
 ```
 
+Chaque module a **sa propre table d'historique Flyway**. Un échec sur un couple est **isolé** :
+inscrit `MIGRATION_REQUISE` dans l'inventaire, la passe continue, le démarrage n'est pas empêché —
+sinon un seul tenant en défaut bloquerait tous les autres.
+
 **Aucune colonne `tenant_id`. Aucun `where tenant = ?`.** Le module écrit du SQL sans savoir où il
-va ; une `DataSource` de routage choisit la base d'après un `ThreadLocal`.
+va ; une `DataSource` de routage choisit la base d'après le contexte.
+
+### Fail-closed — le point non négociable
+
+```
+HORS TENANT : refuse (Failed to obtain JDBC Connection)
+```
+
+Le routage n'a **pas** de `defaultTargetDataSource`. Sans tenant dans le contexte, la demande
+**échoue**. Servir une base par défaut — celle d'un tenant, ou pire celle de contrôle — transforme
+un oubli de contexte en fuite entre clients, et la rend invisible.
+
+Pour la même raison, `TenantContext` expose `executerAvec()` (portée bornée, restauration garantie)
+et `propager()` (transmission explicite) : un `ThreadLocal` ne traverse **aucune** frontière de
+thread, et un job planifié qui le perd travaille sur la mauvaise base sans rien dire.
 
 ### L'édition détermine le schéma de la base
 
-C'est le résultat qui compte. L'édition **pizza seule**, sur des bases neuves :
-
 ```sh
 (cd edition-pizza-seule && mvn -q package \
-  && java -Dpizzeria.donnees=/tmp/pz-demo -jar target/edition-pizza-seule-1.0.0.jar)
+  && java -Dpizzeria.donnees=/tmp/pz-demo -Dpizzeria.modules-vendables=pizza \
+     -jar target/edition-pizza-seule-1.0.0.jar)
 ```
 
 | | schémas dans la base `lyon` |
@@ -189,15 +229,14 @@ C'est le résultat qui compte. L'édition **pizza seule**, sur des bases neuves 
 | édition complète | `pizza`, `livraison` |
 | édition pizza seule | `pizza` |
 
-Le schéma `livraison` **n'a jamais existé**. Pas créé puis vidé — jamais créé. Un module qui arrive
-par une coordonnée apporte ses migrations sans que le socle sache quoi que ce soit de lui.
+Le schéma `livraison` **n'a jamais existé**. Pas créé puis vidé — jamais créé.
 
 ### L'entitlement — « présent, mais pas acheté »
 
-Le JAR est dans l'édition, mais le tenant n'a pas le droit d'usage. Il y a **trois familles de
-points d'entrée** : les services, les listeners d'événements, les jobs planifiés.
+Le JAR est dans l'édition, mais le tenant n'a pas le droit d'usage. Trois familles de points
+d'entrée : les **services**, les **listeners d'événements**, les **jobs planifiés**.
 
-Le garde naïf — le socle vérifie avant d'appeler le service :
+Le garde naïf — le socle vérifie avant d'appeler le service (`-Dpizzeria.garde=naif`) :
 
 ```
 ── MARSEILLE ── a achete : pizza
@@ -211,9 +250,10 @@ Le garde naïf — le socle vérifie avant d'appeler le service :
 **Le listener « arrive par derrière ».** Marseille n'a pas acheté la livraison, et pourtant un
 scooter lui est affecté et sa tournée est préparée. Rien n'échoue, rien n'est journalisé.
 
-Le garde structurel — un `BeanPostProcessor` enveloppe **tout bean vivant sous
-`com.pizzeria.<code>`**, et le module cible est le **segment de paquet**. Aucune annotation à
-maintenir, donc rien à oublier sur un nouveau point d'entrée :
+Le garde structurel enveloppe **tout bean vivant sous `com.pizzeria.<code>`** ; le module cible est
+le **segment de paquet**, et le droit est lu dans la base de contrôle. Aucune annotation à
+maintenir, donc rien à oublier sur un nouveau point d'entrée. Les modules **non vendables** en sont
+exemptés — c'est `sellable()` :
 
 ```
 ── MARSEILLE ── a achete : pizza
@@ -228,7 +268,30 @@ Et un contrôle de couverture **échoue au démarrage** si un bean de module éc
 COUVERTURE : tous les points d'entree de module sont gardes
 ```
 
-Pour voir le mode naïf : `java -Dpizzeria.garde=naif -jar …`
+---
+
+## Représentativité — ce que cet exemple reproduit, et ce qu'il ignore
+
+L'exemple vise la **forme** des mécanismes, pas leur surface. Ce qui est reproduit fidèlement :
+
+| Mécanisme | Forme reproduite |
+|---|---|
+| Fiche de module | les 9 méthodes du contrat, plus une mise en œuvre `record` |
+| Registre des modules | refus des collisions de `code` et de `schema` au démarrage |
+| Base de contrôle | registre des tenants + droits + inventaire des versions, sans donnée métier |
+| Résolution de tenant | lecture de la base de contrôle, cache du routage seul |
+| Routage | **fail-closed** — pas de base par défaut |
+| Contexte de tenant | portée bornée et propagation explicite entre threads |
+| Migrations | par tenant × module, par rang, une histoire Flyway par module, échec isolé |
+| Auto-câblage | `AutoConfiguration.imports`, à l'identique |
+| Entitlement | trois familles de points d'entrée, garde par paquet, contrôle de couverture |
+
+Ce qui est **volontairement absent** : authentification, SSO, clés d'API, référentiel tiers, RGPD
+et effacement, journal d'événements et relais sortant, webhooks, notifications, courrier, coffre à
+secrets, audit, observabilité, licences, pooling de connexions, détection de dérive de schéma,
+provisionnement et cycle de vie des tenants. Ce sont des sous-systèmes entiers ; leur absence ne
+change rien à ce que l'exemple démontre, mais **elle fait paraître le socle plus petit qu'il ne
+l'est**.
 
 ---
 

@@ -2,6 +2,7 @@ package com.pizzeria.pizza;
 
 import com.pizzeria.socle.Module;
 import com.pizzeria.socle.ModuleDescriptor;
+import com.pizzeria.socle.SimpleModuleDescriptor;
 import javax.sql.DataSource;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -12,13 +13,9 @@ public class PizzaAutoConfiguration {
 
     @Bean
     public ModuleDescriptor fichePizza() {
-        return new ModuleDescriptor() {
-            public String code()   { return "pizza"; }
-            public String schema() { return "pizza"; }
-            public int    rang()   { return 10; }
-            public String emplacementMigrations() { return "classpath:db/pizza"; }
-            public String paquetRacine() { return "com.pizzeria.pizza"; }
-        };
+        return new SimpleModuleDescriptor(
+                "pizza", "pizza", 10, "classpath:db/pizza",
+                "pizza_flyway_history", "0", true, "com.pizzeria.pizza", true);
     }
 
     /** Aucune colonne tenant dans la requete. Le routage s'en charge. */

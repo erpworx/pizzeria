@@ -2,6 +2,7 @@ package com.pizzeria.livraison;
 
 import com.pizzeria.socle.Module;
 import com.pizzeria.socle.ModuleDescriptor;
+import com.pizzeria.socle.SimpleModuleDescriptor;
 import javax.sql.DataSource;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -12,13 +13,9 @@ public class LivraisonAutoConfiguration {
 
     @Bean
     public ModuleDescriptor ficheLivraison() {
-        return new ModuleDescriptor() {
-            public String code()   { return "livraison"; }
-            public String schema() { return "livraison"; }
-            public int    rang()   { return 20; }
-            public String emplacementMigrations() { return "classpath:db/livraison"; }
-            public String paquetRacine() { return "com.pizzeria.livraison"; }
-        };
+        return new SimpleModuleDescriptor(
+                "livraison", "livraison", 20, "classpath:db/livraison",
+                "livraison_flyway_history", "0", true, "com.pizzeria.livraison", true);
     }
 
     @Bean
