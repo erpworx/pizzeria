@@ -1,0 +1,10 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.pizzeria</groupId><artifactId>pizzeria-bom</artifactId>
+  <version>2026.41</version><packaging>pom</packaging>
+  <dependencyManagement><dependencies>
+    <dependency><groupId>com.pizzeria</groupId><artifactId>socle</artifactId><version>4.1.1</version></dependency>
+    <dependency><groupId>com.pizzeria</groupId><artifactId>module-pizza</artifactId><version>4.1.1</version></dependency>
+    <dependency><groupId>com.pizzeria</groupId><artifactId>module-livraison</artifactId><version>4.1.1</version></dependency>
+  </dependencies></dependencyManagement>
+</project>

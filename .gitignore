@@ -1,0 +1,6 @@
+target/
+depot/
+donnees/
+*.mv.db
+*.trace.db
+.DS_Store

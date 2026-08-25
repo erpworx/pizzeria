@@ -1,0 +1,19 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.pizzeria</groupId><artifactId>edition-collision</artifactId><version>1.0.0</version>
+  <repositories><repository><id>pizzeria</id><url>file://${project.basedir}/../depot</url></repository></repositories>
+  <dependencyManagement><dependencies>
+    <dependency><groupId>com.pizzeria</groupId><artifactId>pizzeria-bom</artifactId>
+      <version>2026.13</version><type>pom</type><scope>import</scope></dependency>
+  </dependencies></dependencyManagement>
+  <dependencies>
+    <dependency><groupId>com.pizzeria</groupId><artifactId>socle</artifactId></dependency>
+    <dependency><groupId>com.pizzeria</groupId><artifactId>module-pizza</artifactId></dependency>
+    <dependency><groupId>com.pizzeria</groupId><artifactId>module-livraison</artifactId></dependency>
+  </dependencies>
+  <build><plugins><plugin>
+    <groupId>org.springframework.boot</groupId><artifactId>spring-boot-maven-plugin</artifactId><version>4.0.3</version>
+    <configuration><mainClass>com.pizzeria.socle.PizzeriaApplication</mainClass></configuration>
+    <executions><execution><goals><goal>repackage</goal></goals></execution></executions>
+  </plugin></plugins></build>
+</project>
